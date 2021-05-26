@@ -1,0 +1,34 @@
+﻿@using DAL.Entities
+@using BLL.Interfaces
+@using BLL.DTO
+@using Blazor.Models
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject IAdminsServices services
+@inject HttpClient Http
+
+<span class="navbar-text my-lg-0">
+    @account.Name @account.Surname @*@account.Id*@<br />
+</span>
+@code {
+    public Admin account = new Admin();
+    protected async override Task OnInitializedAsync()
+    {
+        string id = await JSRuntime.InvokeAsync<string>("localStorage.getItem","aId");//"6869ea2a-b67c-4fac-bfc0-438a75a5e6bf";
+        account = await Http.GetFromJsonAsync<Admin>($"https://localhost:44374/api/Admins/{id}");
+
+        //var json = Newtonsoft.Json.JsonConvert.DeserializeObject<AccountInfoModel>(
+        //    await services.Login(new AdminLoginDTO { Email = "root@root.com", Password = "", RememberMe = false }));
+        //var admin = await services.GetInfo(new AdminLoginDTO { Id = json.AdminId });
+        //var warehouse = await services.GetWarehouse(new AdminLoginDTO { Id = json.AdminId });
+        //account = new AccountInfoModel{
+        //    AdminId = admin.Id,
+        //    Token = json.Token,
+        //    Name = admin.Name,
+        //    Surname = admin.Surname,
+        //    WarehouseId = warehouse.Id
+        //};
+
+    }
+}

@@ -1,0 +1,63 @@
+﻿@using BLL.Interfaces
+@using DAL.Entities
+@using BLL.DTO
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject BLL.Interfaces.IWarehousesServices services
+@inject HttpClient Http
+
+<div class="card">
+    <div class="card-body">
+        <p>@wId</p>
+        <h3 class="card-title">
+            Your warehouse
+        </h3>
+        <p class="card-text">
+            Name: @MainWarehouse.Name
+        </p>
+        <p class="card-text">
+            Address: @MainWarehouse.Address
+        </p>
+    </div>
+</div>
+<br />
+<br />
+<div class="container-fluid">
+    <h3>Other warehouses</h3>
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var w in warehouses)
+            {
+                if (w.Id != MainWarehouse.Id)
+                {
+                    <tr>
+                        <td>@w.Id</td>
+                        <td>@w.Name</td>
+                        <td>@w.Address</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+@code {
+    public int wId = 10;
+    public Warehouse MainWarehouse = new Warehouse();
+    public IEnumerable<Warehouse> warehouses = new List<Warehouse>();
+    protected async override Task OnInitializedAsync()
+    {
+        string aId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "aId");
+        Warehouse warehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{aId}");
+        wId = (int)warehouse.Id;
+        MainWarehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{wId}/info");
+        warehouses = await Http.GetFromJsonAsync<IEnumerable<Warehouse>>($"https://localhost:44374/api/Warehouses/all");
+    }
+}

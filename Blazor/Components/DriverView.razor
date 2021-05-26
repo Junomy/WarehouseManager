@@ -1,0 +1,214 @@
+﻿@using BLL.Interfaces
+@using DAL.Entities
+@using BLL.DTO
+@using Blazor.Models
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject NavigationManager uriHelper
+@inject IDriversServices driver_services
+@inject IWarehousesServices warehouse_services
+@inject HttpClient Http
+
+<div class="container-fluid">
+    <br />
+    <br />
+    <h3>Warehouse Drivers</h3>
+    <div class="container-fluid d-flex justify-content-between">
+        <div>
+            <form @onsubmit="Search">
+                <input type="text" @bind-value="search" />
+                <input type="submit" value="Search" class="btn btn-primary" />
+            </form>
+        </div>
+        <div>
+            <button class="btn btn-light" @onclick="() => Sort('a')">Sort by name asc</button>
+            <button class="btn btn-light" @onclick="() => Sort('d')">Sort by name desc</button>
+            <button class="btn btn-danger" @onclick="() => Sort('c')">Cancel</button>
+        </div>
+    </div>
+    <br />
+    <br />
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Employment Date</th>
+                <th>Working Hours</th>
+                <th>Wage</th>
+                <th>Rating</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var d in drivers)
+            {
+                <tr>
+                    <td>@d.Id</td>
+                    <td>@d.Name @d.Surname</td>
+                    <td>@d.EmploymentDate</td>
+                    <td>@d.Hours h.</td>
+                    <td>$@d.Wage</td>
+                    <td>@d.Rating / 5.00 </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => DeleteDriver(d.Id)">X</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<div class="container-fluid d-flex justify-content-between w-25">
+    @if (currentPage <= 1)
+    {
+        <button class="btn btn-secondary">Prev</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Prev">Prev</button>
+    }
+    <p>@currentPage</p>
+    @if (currentPage >= amount + 1)
+    {
+        <button class="btn btn-secondary">Next</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Next">Next</button>
+    }
+
+</div>
+<br />
+<br />
+<div class="container w-25">
+    <h3>Add new driver:</h3>
+    <EditForm Model="@driver" OnSubmit="@FormSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-group">
+            <label>Name</label>
+            <InputText @bind-Value="@driver.Name" class="form-control"></InputText>
+        </div>
+        <div class="form-group">
+            <label>Surname</label>
+            <InputText @bind-Value="@driver.Surname" class="form-control"></InputText>
+        </div>
+        <div class="form-group">
+            <label>Work Hours</label>
+            <InputNumber @bind-Value="@driver.Hours" class="form-control"></InputNumber>
+        </div>
+        <div class="form-group">
+            <label>Wage</label>
+            <InputNumber @bind-Value="@driver.Wage" class="form-control"></InputNumber>
+        </div>
+        <div class="form-group">
+            <label>Rating</label>
+            <InputNumber @bind-Value="@driver.Rating" class="form-control"></InputNumber>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </EditForm>
+</div>
+@code {
+    public int currentPage = 1;
+    public int wId = 1;
+    public int amount = 1;
+    public string search = "";
+
+    public DriverModel driver = new DriverModel();
+    public IEnumerable<DAL.Entities.Driver> drivers = new List<DAL.Entities.Driver>();
+
+    protected async override Task OnInitializedAsync()
+    {
+        string aId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "aId");
+        Warehouse warehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{aId}");
+        wId = (int)warehouse.Id;
+        drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        amount = await driver_services.Amount(wId);
+    }
+    private async Task FormSubmit(EditContext editContext)
+    {
+        driver.WarehouseId = 1;
+        driver.EmploymentDate = DateTime.Now;
+        DriverDTO newDriver = new DriverDTO
+        {
+            Name = driver.Name,
+            Surname = driver.Surname,
+            EmploymentDate = driver.EmploymentDate,
+            Hours = driver.Hours,
+            Wage = driver.Wage,
+            Rating = driver.Rating,
+            WarehouseId = driver.WarehouseId
+        };
+        await Http.PostAsJsonAsync("https://localhost:44374/api/Drivers/add", newDriver);
+        currentPage = amount + 1;
+        drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        StateHasChanged();
+    }
+    private async Task DeleteDriver(int id)
+    {
+        await Http.DeleteAsync($"https://localhost:44374/api/Drivers/{id}/delete");
+        drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        StateHasChanged();
+    }
+    public async Task Next()
+    {
+        currentPage++;
+        if (currentPage > amount + 1)
+        {
+            currentPage = amount + 1;
+        }
+        drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        StateHasChanged();
+    }
+    public async Task Prev()
+    {
+        currentPage--;
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+        drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        StateHasChanged();
+    }
+    public void Sort(char command)
+    {
+        switch (command)
+        {
+            case 'a':
+                {
+                    drivers = drivers.OrderBy(d => d.Name);
+                    break;
+                }
+            case 'd':
+                {
+                    drivers = drivers.OrderByDescending(d => d.Name);
+                    break;
+                }
+            case 'c':
+                {
+                    drivers = drivers.OrderBy(d => d.Id);
+                    break;
+                }
+            default:
+                {
+                    drivers = drivers.OrderBy(d => d.Id);
+                    break;
+                }
+        }
+        StateHasChanged();
+    }
+    public async Task Search()
+    {
+        if (search == "")
+        {
+            drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/{currentPage}");
+        }
+        else
+        {
+            drivers = await Http.GetFromJsonAsync<IEnumerable<Driver>>($"https://localhost:44374/api/Drivers/{wId}/0");
+            drivers = drivers.Where(s => s.Name.Contains(search));
+        }
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,57 @@
+﻿@page "/drivers"
+@namespace Blazor.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using Blazor.Components
+@using Blazor.Shared
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Warehouse Manager</title>
+    <base href="~/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand">Warehouse Manager</a>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item active">
+                    <a class="nav-link" href="/Home">Warehouse</a>
+                </li>
+                <li class="nav-item active">
+                    <a class="nav-link" href="/stock">Stock</a>
+                </li>
+                <li class="nav-item active">
+                    <a class="nav-link" href="/orders">Orders</a>
+                </li>
+                <li class="nav-item active">
+                    <a class="nav-link" href="/drivers">Drivers</a>
+                </li>
+                <li class="nav-item active">
+                    <a class="nav-link" href="/providers">Products & Providers</a>
+                </li>
+            </ul>
+            <component type="typeof(AccountInfo)" render-mode="Server" />
+            <span class="nav-item active text-danger my-lg-0">
+                <a class="nav-link" href="#">Logout</a>
+            </span>
+        </div>
+    </nav>
+    <products>
+        <component type="typeof(DriverView)" render-mode="Server" />
+    </products>
+    <br />
+    <br />
+    <footer class="container-fluid bg-light">
+        <h3 class="text-center text-secondary">Warehouse Manager</h3>
+    </footer>
+    <script src="_framework/blazor.server.js"></script>
+</body>
+</html>

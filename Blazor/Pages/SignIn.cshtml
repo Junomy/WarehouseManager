@@ -1,0 +1,24 @@
+﻿@page "/signin"
+@namespace Blazor.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using Blazor.Components
+@using Blazor.Shared
+@{
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Warehouse Manager</title>
+    <base href="~/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+    <signin>
+       @(await Html.RenderComponentAsync<SignIn>(RenderMode.Server))
+    </signin>
+    <script src="_framework/blazor.server.js"></script>
+</body>
+</html>

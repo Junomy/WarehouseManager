@@ -1,0 +1,213 @@
+﻿@using BLL.Interfaces
+@using DAL.Entities
+@using BLL.DTO
+@using Blazor.Models
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject NavigationManager uriHelper
+@inject IProductsServices product_services
+@inject IWarehousesServices warehouse_services
+@inject IStockServices stock_services
+@inject IProvidersServices provider_services
+@inject HttpClient Http
+
+<div class="container-fluid">
+    <br />
+    <br />
+    <h3>Warehouse Stock</h3>
+    <div class="container-fluid d-flex justify-content-between">
+        <div>
+            <form @onsubmit="Search">
+                <input type="text" @bind-value="search" />
+                <input type="submit" class="btn btn-primary" />
+            </form>
+        </div>
+        <div>
+            <button class="btn btn-light" @onclick="() => Sort('a')">Sort by name asc</button>
+            <button class="btn btn-light" @onclick="() => Sort('d')">Sort by name desc</button>
+            <button class="btn btn-danger" @onclick="() => Sort('c')">Cancel</button>
+        </div>
+    </div>
+    <br />
+    <br />
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Buy Price</th>
+                <th>Sell Price</th>
+                <th>Amount</th>
+                <th>Provider Name</th>
+                <th>Provider Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in stockview)
+            {
+                <tr>
+                    <td>@p.ProductId</td>
+                    <td>@p.Name</td>
+                    <td>$@p.BuyPrice</td>
+                    <td>$@p.SellPrice</td>
+                    <td>@p.Amount</td>
+                    <td>@p.ProviderName</td>
+                    <td>@p.ProviderAddress</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<div class="container-fluid d-flex justify-content-between w-25">
+    @if (currentPage <= 1)
+    {
+        <button class="btn btn-secondary">Prev</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Prev">Prev</button>
+    }
+    <p>@currentPage</p>
+    @if (currentPage >= amount + 1)
+    {
+        <button class="btn btn-secondary">Next</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Next">Next</button>
+    }
+</div>
+<br />
+<br />
+<div class="container w-25">
+    <EditForm Model="@newstock" OnSubmit="FormSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-group">
+            <label>Product</label>
+            <InputNumber @bind-Value="@newstock.ProductId" class="form-control"></InputNumber>
+        </div>
+        <div class="form-group">
+            <label>Amount</label>
+            <InputNumber @bind-Value="@newstock.Amount" class="form-control"></InputNumber>
+        </div>
+        <div class="form-group">
+            <label>Sell Price</label>
+            <InputNumber @bind-Value="@newstock.SellPrice" class="form-control"></InputNumber>
+        </div>
+        <input type="submit" value="Submit" class="btn btn-primary">
+    </EditForm>
+</div>
+@code {
+    public int currentPage = 1;
+    public int wId = 1;
+    public int amount = 1;
+    public string search = "";
+    int i = 0;
+    public StockViewModel newstock = new StockViewModel();
+    public List<StockViewModel> stockview = new List<StockViewModel>();
+
+    protected async override Task OnInitializedAsync()
+    {
+        string aId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "aId");
+        Warehouse warehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{aId}");
+        wId = (int)warehouse.Id;
+        await UpdateStock();
+        amount = await stock_services.Amount(wId);
+    }
+    private async Task UpdateStock()
+    {
+        stockview = new List<StockViewModel>();
+        IEnumerable<Stock> stocks = await Http.GetFromJsonAsync<IEnumerable<Stock>>($"https://localhost:44374/api/Stocks/{wId}/{currentPage}");
+        foreach (var s in stocks)
+        {
+            i++;
+            Product product = await Http.GetFromJsonAsync<Product>($"https://localhost:44374/api/Products/{s.ProductId}/info");
+            Provider provider = await Http.GetFromJsonAsync<Provider>($"https://localhost:44374/api/Providers/{product.ProviderId}/info");
+            stockview.Add(new StockViewModel
+            {
+                ProductId = s.ProductId,
+                WarehouseId = s.WarehouseId,
+                Name = product.Name,
+                BuyPrice = product.Price,
+                SellPrice = s.SellPrice,
+                Amount = s.Amount,
+                ProviderId = provider.Id,
+                ProviderName = provider.Name,
+                ProviderAddress = provider.Address
+            });
+        }
+        StateHasChanged();
+    }
+    private async Task FormSubmit(EditContext editContext)
+    {
+        StockDTO dto = new StockDTO
+        {
+            WarehouseId = wId,
+            ProductId = newstock.ProductId,
+            Amount = newstock.Amount,
+            SellPrice = newstock.SellPrice
+        };
+        await Http.PostAsJsonAsync("https://localhost:44374/api/Warehouses/addproduct", dto);
+        await UpdateStock();
+    }
+    public async Task Next()
+    {
+        currentPage++;
+        if (currentPage > amount + 1)
+        {
+            currentPage = amount + 1;
+        }
+        await UpdateStock();
+    }
+    public async Task Prev()
+    {
+        currentPage--;
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+        await UpdateStock();
+    }
+    public void Sort(char command)
+    {
+        switch (command)
+        {
+            case 'a':
+                {
+                    stockview = stockview.OrderBy(d => d.Name).ToList();
+                    break;
+                }
+            case 'd':
+                {
+                    stockview = stockview.OrderByDescending(d => d.Name).ToList();
+                    break;
+                }
+            case 'c':
+                {
+                    stockview = stockview.OrderBy(d => d.ProductId).ToList();
+                    break;
+                }
+            default:
+                {
+                    stockview = stockview.OrderBy(d => d.ProductId).ToList();
+                    break;
+                }
+        }
+        StateHasChanged();
+    }
+    public async Task Search()
+    {
+        if (search == "")
+        {
+            await UpdateStock();
+        }
+        else
+        {
+            await UpdateStock();
+            stockview = stockview.Where(s => s.Name.Contains(search)).ToList();
+        }
+        StateHasChanged();
+    }
+}

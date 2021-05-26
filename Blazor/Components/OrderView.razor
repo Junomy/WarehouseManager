@@ -1,0 +1,181 @@
+﻿@using BLL.Interfaces
+@using DAL.Entities
+@using BLL.DTO
+@using System.Linq
+@using Blazor.Models
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+@inject NavigationManager uriHelper
+@inject IOrdersServices order_services
+@inject IProductsServices product_services
+@inject IClientsServices client_services
+@inject IWarehousesServices warehouse_services
+@inject IStockServices stock_services
+
+<div class="container-fluid">
+    <br />
+    <br />
+    <h3>Warehouse Orders</h3>
+    <div class="container-fluid d-flex justify-content-between">
+        <div>
+            <form @onsubmit="Search">
+                <input type="text" @bind-value="search" />
+                <input type="submit" value="Search" class="btn btn-primary" />
+            </form>
+        </div>
+        <div>
+            <button class="btn btn-light" @onclick="() => Sort('a')">Sort by name asc</button>
+            <button class="btn btn-light" @onclick="() => Sort('d')">Sort by name desc</button>
+            <button class="btn btn-danger" @onclick="() => Sort('c')">Cancel</button>
+        </div>
+    </div>
+    <br />
+    <br />
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Order Id</th>
+                <th>Product Name</th>
+                <th>Product Amount</th>
+                <th>Client Name</th>
+                <th>Client Address</th>
+                <th>Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var d in orderview)
+            {
+                <tr>
+                    <td>@d.Id</td>
+                    <td>@d.ProductName</td>
+                    <td>@d.ProductAmount</td>
+                    <td>@d.ClientName</td>
+                    <td>@d.ClientAddress</td>
+                    <td>$@d.Cost</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<div class="container-fluid d-flex justify-content-between w-25">
+    @if (currentPage <= 1)
+    {
+        <button class="btn btn-secondary">Prev</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Prev">Prev</button>
+    }
+    <p>@currentPage</p>
+    @if (currentPage >= amount + 1)
+    {
+        <button class="btn btn-secondary">Next</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Next">Next</button>
+    }
+
+</div>
+<br />
+<br />
+@code {
+    public int currentPage = 1;
+    public int wId = 1;
+    public int amount = 1;
+    public string search = "";
+
+    public Order order = new Order();
+    public List<OrderViewModel> orderview = new List<OrderViewModel>();
+    protected async override Task OnInitializedAsync()
+    {
+        string aId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "aId");
+        Warehouse warehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{aId}");
+        wId = (int)warehouse.Id;
+        await UpdateOrders();
+        amount = await order_services.Amount(wId);
+    }
+    private async Task UpdateOrders()
+    {
+        orderview = new List<OrderViewModel>();
+        var orders = await Http.GetFromJsonAsync<IEnumerable<Order>>($"https://localhost:44374/api/Orders/{wId}/{currentPage}");
+        foreach (var o in orders)
+        {
+            var product = await Http.GetFromJsonAsync<Product>($"https://localhost:44374/api/Products/{o.ProductId}/info");
+            var client = await Http.GetFromJsonAsync<Client>($"https://localhost:44374/api/Clients/{o.ClientId}/info");
+            orderview.Add(new OrderViewModel
+            {
+                Id = o.Id,
+                ClientId = o.ClientId,
+                ProductId = o.ProductId,
+                ProductAmount = o.ProductAmount,
+                WarehouseId = o.WarehouseId,
+                Cost = o.Cost,
+                ProductName = product.Name,
+                ClientName = client.Name,
+                ClientAddress = client.Address
+            });
+        }
+        StateHasChanged();
+    }
+    public async Task Next()
+    {
+        currentPage++;
+        if (currentPage > amount + 1)
+        {
+            currentPage = amount + 1;
+        }
+        await UpdateOrders();
+    }
+    public async Task Prev()
+    {
+        currentPage--;
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+        await UpdateOrders();
+    }
+    public void Sort(char command)
+    {
+        switch (command)
+        {
+            case 'a':
+                {
+                    orderview = orderview.OrderBy(d => d.ProductName).ToList();
+                    break;
+                }
+            case 'd':
+                {
+                    orderview = orderview.OrderByDescending(d => d.ProductName).ToList();
+                    break;
+                }
+            case 'c':
+                {
+                    orderview = orderview.OrderBy(d => d.Id).ToList();
+                    break;
+                }
+            default:
+                {
+                    orderview = orderview.OrderBy(d => d.Id).ToList();
+                    break;
+                }
+        }
+        StateHasChanged();
+    }
+    public async Task Search()
+    {
+        if (search == "")
+        {
+            await UpdateOrders();
+        }
+        else
+        {
+            await UpdateOrders();
+            orderview = orderview.Where(s => s.ProductName.Contains(search)).ToList();
+        }
+        StateHasChanged();
+    }
+}

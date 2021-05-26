@@ -1,0 +1,333 @@
+﻿@using BLL.Interfaces
+@using DAL.Entities
+@using BLL.DTO
+@using Blazor.Models
+@using System.Linq;
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+@inject NavigationManager uriHelper
+@inject IProvidersServices provider_services
+@inject IProductsServices product_services
+
+<div class="container-fluid">
+    <br />
+    <br />
+    <h3>Providers & Products</h3>
+    <div class="container-fluid d-flex justify-content-between">
+        <div>
+            <form @onsubmit="Search">
+                <input type="text" @bind-value="search" />
+                <input type="submit" value="Search" class="btn btn-primary" />
+            </form>
+        </div>
+        <div>
+            <button class="btn btn-light" @onclick="() => Sort('a')">Sort by name asc</button>
+            <button class="btn btn-light" @onclick="() => Sort('d')">Sort by name desc</button>
+            <button class="btn btn-danger" @onclick="() => Sort('c')">Cancel</button>
+        </div>
+    </div>
+    <br />
+    <br />
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in table)
+            {
+                <tr>
+                    <td>@p.Id</td>
+                    <td>@p.Name</td>
+                    <td>@p.Address</td>
+                    @if (p.ProductsShow)
+                    {
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => HideProducts(p.Id)">X</button>
+                        </td>
+                    }
+                    else
+                    {
+                        <td><button class="btn btn-primary" @onclick="() => ShowProducts(p.Id)">Products</button></td>
+                    }
+                </tr>
+                @if (p.ProductsShow)
+                {
+                    <tr class="container-fluid">
+                    <tr>
+                        <th>Id</th>
+                        <th>Name</th>
+                        <th>Price</th>
+                    </tr>
+                    @foreach (var pr in p.Products)
+                    {
+                        <tr>
+                            <td>@pr.Id</td>
+                            <td>@pr.Name</td>
+                            <td>@pr.Price</td>
+                        </tr>
+                    }
+
+                    </tr>
+                    <div class="container-fluid d-flex">
+                        @if (p.ProdPage <= 1)
+                        {
+                            <button class="btn btn-secondary">Prev</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary" @onclick="() => PrevProd(p.Id)">Prev</button>
+                        }
+                        <p>@p.ProdPage</p>
+                        @if (p.ProdPage >= p.ProdAmount + 1)
+                        {
+                            <button class="btn btn-secondary">Next</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary" @onclick="() => NextProd(p.Id)">Next</button>
+                        }
+
+                    </div>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+<div class="container-fluid d-flex justify-content-between w-25">
+    @if (currentPage <= 1)
+    {
+        <button class="btn btn-secondary">Prev</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Prev">Prev</button>
+    }
+    <p>@currentPage</p>
+    @if (currentPage >= amount + 1)
+    {
+        <button class="btn btn-secondary">Next</button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="Next">Next</button>
+    }
+
+</div>
+<br />
+<br />
+<div class="container-fluid d-flex justify-content-center">
+    <div class="container w-25 d-inline-block align-top">
+        <h3>Add provider</h3>
+        <EditForm Model="@provider" OnSubmit="@ProviderSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="form-group">
+                <label>Name</label>
+                <InputText @bind-Value="@provider.Name" class="form-control"></InputText>
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <InputText @bind-Value="@provider.Address" class="form-control"></InputText>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </EditForm>
+    </div>
+    <div class="container w-25 d-inline-block align-top">
+        <h3>Add product</h3>
+        <EditForm Model="@product" OnSubmit="@ProductSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="form-group">
+                <label>Name</label>
+                <InputText @bind-Value="@product.Name" class="form-control"></InputText>
+            </div>
+            <div class="form-group">
+                <label>Price</label>
+                <InputNumber @bind-Value="@product.Price" class="form-control"></InputNumber>
+            </div>
+            <div class="form-group">
+                <label>Provider Id</label>
+                <InputNumber @bind-Value="@product.ProviderId" class="form-control"></InputNumber>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </EditForm>
+    </div>
+</div>
+@code {
+    public int currentPage = 1;
+    public int wId = 0;
+    public int amount = 1;
+    public string search = "";
+
+    public ProductViewModel product = new ProductViewModel();
+    public ProviderViewModel provider = new ProviderViewModel();
+    public List<ProviderViewModel> table = new List<ProviderViewModel>();
+    protected async override Task OnInitializedAsync()
+    {
+        string aId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "aId");
+        Warehouse warehouse = await Http.GetFromJsonAsync<Warehouse>($"https://localhost:44374/api/Warehouses/{aId}");
+        wId = (int)warehouse.Id;
+        await UpdateTable();
+        amount = await provider_services.ProdAmount(wId);
+    }
+    public async Task ShowProducts(int Id)
+    {
+        var model = table.Where(p => p.Id == Id).First();
+        table.Where(p => p.Id == Id)
+            .First()
+            .ProductsShow = true;
+        table.Where(p => p.Id == Id)
+            .First()
+            .ProdPage = 1;
+        table.Where(p => p.Id == Id)
+        .First()
+        .Products = await Http.GetFromJsonAsync<List<Product>>($"https://localhost:44374/api/Providers/{Id}/products/{model.ProdPage}");
+        StateHasChanged();
+    }
+    public async Task HideProducts(int Id)
+    {
+        table.Where(p => p.Id == Id)
+            .First()
+            .ProductsShow = false;
+
+        table.Where(p => p.Id == Id)
+            .First()
+            .Products = new List<Product>();
+        StateHasChanged();
+    }
+    private async Task ProductSubmit(EditContext editContext)
+    {
+        await product_services.AddProduct(new ProductDTO
+        {
+            Name = product.Name,
+            Price = product.Price,
+            ProviderId = product.ProviderId
+        });
+        uriHelper.NavigateTo(uriHelper.Uri, forceLoad: true);
+    }
+    private async Task ProviderSubmit(EditContext editContext)
+    {
+        await provider_services.AddProvider(new ProviderDTO
+        {
+            Name = provider.Name,
+            Address = provider.Address
+        });
+        uriHelper.NavigateTo(uriHelper.Uri, forceLoad: true);
+    }
+    private async Task UpdateTable()
+    {
+        table = new List<ProviderViewModel>();
+        var providers = await Http.GetFromJsonAsync<List<Provider>>($"https://localhost:44374/api/Providers/{currentPage}");
+        foreach (var p in providers)
+        {
+            table.Add(new ProviderViewModel
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Address = p.Address,
+                ProductsShow = false,
+                Products = new List<Product>(),
+                ProdPage = 1,
+                ProdAmount = await provider_services.ProdAmount(p.Id)
+            });
+        }
+        StateHasChanged();
+    }
+    public async Task Next()
+    {
+        currentPage++;
+        if (currentPage > amount + 1)
+        {
+            currentPage = amount + 1;
+        }
+        await UpdateTable();
+    }
+    public async Task Prev()
+    {
+        currentPage--;
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+
+        await UpdateTable();
+    }
+    public void Sort(char command)
+    {
+        switch (command)
+        {
+            case 'a':
+                {
+                    table = table.OrderBy(d => d.Name).ToList();
+                    break;
+                }
+            case 'd':
+                {
+                    table = table.OrderByDescending(d => d.Name).ToList();
+                    break;
+                }
+            case 'c':
+                {
+                    table = table.OrderBy(d => d.Id).ToList();
+                    break;
+                }
+            default:
+                {
+                    table = table.OrderBy(d => d.Id).ToList();
+                    break;
+                }
+        }
+        StateHasChanged();
+    }
+    public async Task Search()
+    {
+        if (search == "")
+        {
+            await UpdateTable();
+        }
+        else
+        {
+            await UpdateTable();
+            table = table.Where(s => s.Name.Contains(search)).ToList();
+        }
+        StateHasChanged();
+    }
+    public async Task PrevProd(int id)
+    {
+        int page = table.Where(p => p.Id == id).First().ProdPage;
+        if (page - 1 < 1)
+        {
+            page = 1;
+        }
+        else
+        {
+            page--;
+        }
+        table.Where(p => p.Id == id).First().ProdPage = page;
+        table.Where(p => p.Id == id).First().Products = await Http.GetFromJsonAsync<List<Product>>($"https://localhost:44374/api/Providers/{id}/products/{page}");
+        StateHasChanged();
+    }
+    public async Task NextProd(int id)
+    {
+        int page = table.Where(p => p.Id == id).First().ProdPage;
+        int prodamount = table.Where(p => p.Id == id).First().ProdAmount;
+        if (page + 1 > prodamount + 1)
+        {
+            page = prodamount + 1;
+        }
+        else
+        {
+            page++;
+        }
+        table.Where(p => p.Id == id).First().ProdPage = page;
+        table.Where(p => p.Id == id).First().Products = await Http.GetFromJsonAsync<List<Product>>($"https://localhost:44374/api/Providers/{id}/products/{page}");
+        StateHasChanged();
+    }
+}
